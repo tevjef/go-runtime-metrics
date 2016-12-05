@@ -18,10 +18,11 @@ An example of what this looks like when configured to work with [Grafana](http:/
 	-mem=true			            collect memory statistics
 	-gc=true 			            collect GC statistics (requires memory be enabled)
 	-pause=10 		                collection pause interval
-	-influxdb-database=REQUIRED 	host:port pair.
-	-influxdb-username="" 		    database to write points to.
-	-influxdb-password="" 		    username with privileges on provided database.
-	-influxdb-measurement="" 	    password for provided user.
+	-influxdb=localhost:8086        host:port pair.
+	-influxdb-database=REQUIRED 	database to write points to.
+	-influxdb-username="" 		    username with privileges on provided database.
+	-influxdb-password="" 		    password for provided user.
+	-influxdb-measurement="" 	    measurement to write points to..
 	-influxdb-retention-policy="" 	retention policy of the points.
 ```
 ### expvar
