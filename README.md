@@ -11,7 +11,7 @@ which is generally done in your `func main() {}`.
 Once imported and running, you can expect a number of Go runtime metrics to be sent to influxdb. 
 An example of what this looks like when configured to work with [Grafana](http://grafana.org/):
 
-<a href=""><img src="grafana.png" alt="Grafana"/></a>
+![](/grafana.png)
 
 ```
 	-cpu=true 		                collect CPU statistics
