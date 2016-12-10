@@ -32,9 +32,11 @@ type Point struct {
 func Metrics(measurement string) expvar.Func {
 	c := collector.New(nil)
 	return expvar.Func(func() interface{} {
+		values := c.OneOff()
 		return &Point{
 			Name:   measurement,
-			Values: c.OneOff(),
+			Tags: values.Tags(),
+			Values: values,
 		}
 	})
 }

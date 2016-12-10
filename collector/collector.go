@@ -105,6 +105,10 @@ func (c *Collector) outputStats() {
 		}
 	}
 
+	c.fields.Goos = runtime.GOOS
+	c.fields.Goarch = runtime.GOARCH
+	c.fields.Version = runtime.Version()
+
 	c.fieldsFunc(c.fields)
 }
 
@@ -196,9 +200,21 @@ type Fields struct {
 	PauseNs       int64   `json:"mem.gc.pause"`
 	NumGC         int64   `json:"mem.gc.count"`
 	GCCPUFraction float64 `json:"mem.gc.cpu_fraction"`
+
+	Goarch string `json:"-"`
+	Goos string `json:"-"`
+	Version string `json:"-"`
 }
 
-func (f *Fields) ToMap() map[string]interface{} {
+func (f *Fields) Tags() map[string]string {
+	return map[string]string{
+		"go.os" : f.Goos,
+		"go.arch" : f.Goarch,
+		"go.version" : f.Version,
+	}
+}
+
+func (f *Fields) Values() map[string]interface{} {
 	return map[string]interface{}{
 		"cpu.goroutines": f.NumGoroutine,
 		"cpu.cgo_calls":  f.NumCgoCall,

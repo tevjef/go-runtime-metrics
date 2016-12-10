@@ -20,7 +20,7 @@ func TestMetrics(t *testing.T) {
 	}
 
 	for _, expKey := range expKeys {
-		if _, ok := point.Values.ToMap()[expKey]; !ok {
+		if _, ok := point.Values.Values()[expKey]; !ok {
 			t.Errorf("expected key (%s) not found", expKey)
 		}
 	}

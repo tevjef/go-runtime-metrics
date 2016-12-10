@@ -75,7 +75,7 @@ func runCollector() {
 	}
 
 	c := collector.New(func(fields collector.Fields) {
-		pt, err := client.NewPoint(*measurement, nil, fields.ToMap(), time.Now())
+		pt, err := client.NewPoint(*measurement, fields.Tags(), fields.Values(), time.Now())
 		if err != nil {
 			log.Fatalln("error:", err)
 		}
