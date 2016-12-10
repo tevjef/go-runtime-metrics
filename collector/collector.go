@@ -80,6 +80,7 @@ func (c *Collector) collectStats() Fields {
 		cStats := cpuStats{
 			NumGoroutine: int64(runtime.NumGoroutine()),
 			NumCgoCall:   int64(runtime.NumCgoCall()),
+			NumCpu:       int64(runtime.NumCPU()),
 		}
 		c.collectCPUStats(&fields, &cStats)
 	}
@@ -100,8 +101,9 @@ func (c *Collector) collectStats() Fields {
 }
 
 func (_ *Collector) collectCPUStats(fields *Fields, s *cpuStats) {
-	fields.NumGoroutine = int64(s.NumGoroutine)
-	fields.NumCgoCall = int64(s.NumCgoCall)
+	fields.NumCpu = s.NumCpu
+	fields.NumGoroutine = s.NumGoroutine
+	fields.NumCgoCall = s.NumCgoCall
 }
 
 func (_ *Collector) collectMemStats(fields *Fields, m *runtime.MemStats) {
@@ -143,6 +145,7 @@ func (_ *Collector) collectGCStats(fields *Fields, m *runtime.MemStats) {
 }
 
 type cpuStats struct {
+	NumCpu       int64
 	NumGoroutine int64
 	NumCgoCall   int64
 }
@@ -150,6 +153,7 @@ type cpuStats struct {
 // NOTE: uint64 is not supported by influxDB client due to potential overflows
 type Fields struct {
 	// CPU
+	NumCpu       int64 `json:"cpu.count"`
 	NumGoroutine int64 `json:"cpu.goroutines"`
 	NumCgoCall   int64 `json:"cpu.cgo_calls"`
 
@@ -203,6 +207,7 @@ func (f *Fields) Tags() map[string]string {
 
 func (f *Fields) Values() map[string]interface{} {
 	return map[string]interface{}{
+		"cpu.count":      f.NumCpu,
 		"cpu.goroutines": f.NumGoroutine,
 		"cpu.cgo_calls":  f.NumCgoCall,
 

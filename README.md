@@ -49,6 +49,7 @@ Import this library's expvar package with `import _ "github.com/tevjef/go-runtim
       "go.version": "go1.7.4"
     },
     "values": {
+      "cpu.count": 4,
       "cpu.cgo_calls": 1,
       "cpu.goroutines": 2,
       "mem.alloc": 667576,
