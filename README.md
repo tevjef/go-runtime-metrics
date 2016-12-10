@@ -37,7 +37,11 @@ Import the expvar package with `import _ "github.com/tevjef/go-runtime-metrics/e
 {
   "/go/bin/binary": {
     "name": "go_runtime_metrics",
-    "tags": null,
+    "tags": {
+      "go.arch": "amd64",
+      "go.os": "darwin",
+      "go.version": "go1.6.3"
+    },
     "values": {
       "cpu.cgo_calls": 1,
       "cpu.goroutines": 2,
@@ -96,9 +100,9 @@ Benchmark against standard library memstat expvar:
 ```
 $ go test -bench=. -parallel 16 -cpu 1,2,4
 
-BenchmarkMetrics          200000             10838 ns/op            3827 B/op         10 allocs/op
-BenchmarkMetrics-2         20000             68876 ns/op            3886 B/op         10 allocs/op
-BenchmarkMetrics-4         50000             22368 ns/op            3882 B/op         10 allocs/op
+BenchmarkMetrics          100000             12456 ns/op            4226 B/op         21 allocs/op
+BenchmarkMetrics-2         20000             63597 ns/op            4264 B/op         21 allocs/op
+BenchmarkMetrics-4         50000             28797 ns/op            4266 B/op         21 allocs/op
 BenchmarkMemstat           20000             78009 ns/op           52264 B/op         12 allocs/op
 BenchmarkMemstat-2         10000            155930 ns/op           52264 B/op         12 allocs/op
 BenchmarkMemstat-4         10000            144849 ns/op           52266 B/op         12 allocs/op
