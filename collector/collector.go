@@ -2,7 +2,6 @@ package collector
 
 import (
 	"runtime"
-	"sync"
 	"time"
 )
 
@@ -31,10 +30,6 @@ type Collector struct {
 	Done <-chan struct{}
 
 	fieldsFunc FieldsFunc
-
-	fields Fields
-
-	mu sync.RWMutex
 }
 
 // New creates a new Collector that will periodically output statistics to fieldsFunc. It
@@ -58,7 +53,7 @@ func New(fieldsFunc FieldsFunc) *Collector {
 // PauseDur. Unlike OneOff, this function will return until Done has been closed
 // (or never if Done is nil), therefore it should be called in its own go routine.
 func (c *Collector) Run() {
-	c.outputStats()
+	c.fieldsFunc(c.collectStats())
 
 	tick := time.NewTicker(c.PauseDur)
 	defer tick.Stop()
@@ -67,7 +62,7 @@ func (c *Collector) Run() {
 		case <-c.Done:
 			return
 		case <-tick.C:
-			c.outputStats()
+			c.fieldsFunc(c.collectStats())
 		}
 	}
 }
@@ -75,84 +70,76 @@ func (c *Collector) Run() {
 // OneOff gathers returns a map containing all statistics. It is safe for use from
 // multiple go routines
 func (c *Collector) OneOff() Fields {
-	c.outputStats()
-
-	c.mu.Lock()
-	defer func() {
-		c.fields = Fields{}
-		c.mu.Unlock()
-	}()
-	return c.fields
+	return c.collectStats()
 }
 
-func (c *Collector) outputStats() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *Collector) collectStats() Fields {
+	fields := Fields{}
 
 	if c.EnableCPU {
 		cStats := cpuStats{
 			NumGoroutine: int64(runtime.NumGoroutine()),
 			NumCgoCall:   int64(runtime.NumCgoCall()),
 		}
-		c.outputCPUStats(&cStats)
+		c.collectCPUStats(&fields, &cStats)
 	}
 	if c.EnableMem {
 		m := &runtime.MemStats{}
 		runtime.ReadMemStats(m)
-		c.outputMemStats(m)
+		c.collectMemStats(&fields, m)
 		if c.EnableGC {
-			c.outputGCStats(m)
+			c.collectGCStats(&fields, m)
 		}
 	}
 
-	c.fields.Goos = runtime.GOOS
-	c.fields.Goarch = runtime.GOARCH
-	c.fields.Version = runtime.Version()
+	fields.Goos = runtime.GOOS
+	fields.Goarch = runtime.GOARCH
+	fields.Version = runtime.Version()
 
-	c.fieldsFunc(c.fields)
+	return fields
 }
 
-func (c *Collector) outputCPUStats(s *cpuStats) {
-	c.fields.NumGoroutine = int64(s.NumGoroutine)
-	c.fields.NumCgoCall = int64(s.NumCgoCall)
+func (_ *Collector) collectCPUStats(fields *Fields, s *cpuStats) {
+	fields.NumGoroutine = int64(s.NumGoroutine)
+	fields.NumCgoCall = int64(s.NumCgoCall)
 }
 
-func (c *Collector) outputMemStats(m *runtime.MemStats) {
+func (_ *Collector) collectMemStats(fields *Fields, m *runtime.MemStats) {
 	// General
-	c.fields.Alloc = int64(m.Alloc)
-	c.fields.TotalAlloc = int64(m.TotalAlloc)
-	c.fields.Sys = int64(m.Sys)
-	c.fields.Lookups = int64(m.Lookups)
-	c.fields.Mallocs = int64(m.Mallocs)
-	c.fields.Frees = int64(m.Frees)
+	fields.Alloc = int64(m.Alloc)
+	fields.TotalAlloc = int64(m.TotalAlloc)
+	fields.Sys = int64(m.Sys)
+	fields.Lookups = int64(m.Lookups)
+	fields.Mallocs = int64(m.Mallocs)
+	fields.Frees = int64(m.Frees)
 
 	// Heap
-	c.fields.HeapAlloc = int64(m.HeapAlloc)
-	c.fields.HeapSys = int64(m.HeapSys)
-	c.fields.HeapIdle = int64(m.HeapIdle)
-	c.fields.HeapInuse = int64(m.HeapInuse)
-	c.fields.HeapReleased = int64(m.HeapReleased)
-	c.fields.HeapObjects = int64(m.HeapObjects)
+	fields.HeapAlloc = int64(m.HeapAlloc)
+	fields.HeapSys = int64(m.HeapSys)
+	fields.HeapIdle = int64(m.HeapIdle)
+	fields.HeapInuse = int64(m.HeapInuse)
+	fields.HeapReleased = int64(m.HeapReleased)
+	fields.HeapObjects = int64(m.HeapObjects)
 
 	// Stack
-	c.fields.StackInuse = int64(m.StackInuse)
-	c.fields.StackSys = int64(m.StackSys)
-	c.fields.MSpanInuse = int64(m.MSpanInuse)
-	c.fields.MSpanSys = int64(m.MSpanSys)
-	c.fields.MCacheInuse = int64(m.MCacheInuse)
-	c.fields.MCacheSys = int64(m.MCacheSys)
+	fields.StackInuse = int64(m.StackInuse)
+	fields.StackSys = int64(m.StackSys)
+	fields.MSpanInuse = int64(m.MSpanInuse)
+	fields.MSpanSys = int64(m.MSpanSys)
+	fields.MCacheInuse = int64(m.MCacheInuse)
+	fields.MCacheSys = int64(m.MCacheSys)
 
-	c.fields.OtherSys = int64(m.OtherSys)
+	fields.OtherSys = int64(m.OtherSys)
 }
 
-func (c *Collector) outputGCStats(m *runtime.MemStats) {
-	c.fields.GCSys = int64(m.GCSys)
-	c.fields.NextGC = int64(m.NextGC)
-	c.fields.LastGC = int64(m.LastGC)
-	c.fields.PauseTotalNs = int64(m.PauseTotalNs)
-	c.fields.PauseNs = int64(m.PauseNs[(m.NumGC+255)%256])
-	c.fields.NumGC = int64(m.NumGC)
-	c.fields.GCCPUFraction = float64(m.GCCPUFraction)
+func (_ *Collector) collectGCStats(fields *Fields, m *runtime.MemStats) {
+	fields.GCSys = int64(m.GCSys)
+	fields.NextGC = int64(m.NextGC)
+	fields.LastGC = int64(m.LastGC)
+	fields.PauseTotalNs = int64(m.PauseTotalNs)
+	fields.PauseNs = int64(m.PauseNs[(m.NumGC+255)%256])
+	fields.NumGC = int64(m.NumGC)
+	fields.GCCPUFraction = float64(m.GCCPUFraction)
 }
 
 type cpuStats struct {
