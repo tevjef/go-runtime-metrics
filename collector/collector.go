@@ -188,16 +188,16 @@ type Fields struct {
 	NumGC         int64   `json:"mem.gc.count"`
 	GCCPUFraction float64 `json:"mem.gc.cpu_fraction"`
 
-	Goarch string `json:"-"`
-	Goos string `json:"-"`
+	Goarch  string `json:"-"`
+	Goos    string `json:"-"`
 	Version string `json:"-"`
 }
 
 func (f *Fields) Tags() map[string]string {
 	return map[string]string{
-		"go.os" : f.Goos,
-		"go.arch" : f.Goarch,
-		"go.version" : f.Version,
+		"go.os":      f.Goos,
+		"go.arch":    f.Goarch,
+		"go.version": f.Version,
 	}
 }
 

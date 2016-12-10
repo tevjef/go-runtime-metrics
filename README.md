@@ -1,38 +1,44 @@
 # go-runtime-metrics
-Collect Golang Runtime Metrics, outputting to a influxdb. Inspired by https://github.com/bmhatfield/go-runtime-metrics
+Collect golang runtime metrics, pushing to [InfluxDB](https://www.influxdata.com/time-series-platform/influxdb/) or pulling with [Telegraf](https://www.influxdata.com/time-series-platform/telegraf/). Inspired by https://github.com/bmhatfield/go-runtime-metrics
 
-The intent of this library is to be a "side effect" import. You can kick off the collector merely by importing this into your main:
+## Installation
 
-`import _ "github.com/tevjef/go-runtime-metrics"`
+    go get -u github.com/tevjef/go-runtime-metrics
+    
+## Push Usage
 
-This library has a few optional flags it depends on and one required flag `-influxdb-database`. It won't be able to output stats until you call flag.Parse(), 
-which is generally done in your `func main() {}`.
+This library can be configured to push metrics directly to InfluxDB.
 
-Once imported and running, you can expect a number of Go runtime metrics to be sent to influxdb. 
+```go
+import (
+	metrics "github.com/tevjef/go-runtime-metrics"
+)
+
+func main() {
+	err := metrics.RunCollector(metrics.DefaultConfig)
+	
+	if err != nil {
+	   // handle error
+	}
+}
+	
+```
+
+Once imported and running, you can expect a number of Go runtime metrics to be sent to InfluxDB. 
 An example of what this looks like when configured to work with [Grafana](http://grafana.org/):
 
 ![](/grafana.png)
 
-```
-	-cpu=true 		                collect CPU statistics
-	-mem=true			            collect memory statistics
-	-gc=true 			            collect GC statistics (requires memory be enabled)
-	-pause=10 		                collection pause interval
-	-influxdb=localhost:8086        host:port pair.
-	-influxdb-database=REQUIRED 	database to write points to.
-	-influxdb-username="" 		    username with privileges on provided database.
-	-influxdb-password="" 		    password for provided user.
-	-influxdb-measurement="" 	    measurement to write points to..
-	-influxdb-retention-policy="" 	retention policy of the points.
-```
-### expvar
+## Pull Usage via [expvar](https://golang.org/pkg/expvar/)
+
+Package [expvar](https://golang.org/pkg/expvar/) provides a standardized interface to public variables. This library provides an exported InfluxDB formatted variable with a few other benefits: 
 
 * Metric names are easily parsed by regexp.
 * Lighter than the standard library memstat expvar
 * Includes stats for `cpu.cgo_calls`, `cpu.goroutines` and timing of the last GC pause with `mem.gc.pause`.
 * Works out the box with Telegraf's [InfluxDB input plugin](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/influxdb)
 
-Import the expvar package with `import _ "github.com/tevjef/go-runtime-metrics/expvar"` to export metrics with default configurations.
+Import this library's expvar package with `import _ "github.com/tevjef/go-runtime-metrics/expvar"` to export a variable with default configurations.
 ```json
 {
   "/go/bin/binary": {
@@ -40,7 +46,7 @@ Import the expvar package with `import _ "github.com/tevjef/go-runtime-metrics/e
     "tags": {
       "go.arch": "amd64",
       "go.os": "darwin",
-      "go.version": "go1.6.3"
+      "go.version": "go1.7.4"
     },
     "values": {
       "cpu.cgo_calls": 1,
@@ -75,26 +81,32 @@ Import the expvar package with `import _ "github.com/tevjef/go-runtime-metrics/e
 }
 ```
 
-#### Custom measurement name
+#### Configuring with [Telegraf](https://www.influxdata.com/time-series-platform/telegraf/)
 
-`influxdb.Metrics` returns a `expvar.Func` which implements `Var` by calling the function
-and formatting the returned value using JSON. Use this function when you need control of the measurement name for a
-data point.
+Your program must import `_ "github.com/tevjef/go-runtime-metrics/expvar` in order for an InfluxDB formatted variable to be exported via `/debug/vars`.
 
-```go
-package main
+1. [Install Telegraf](https://github.com/influxdata/telegraf#installation)
 
-import (
-   "expvar"
-   "github.com/tevjef/go-runtime-metrics/influxdb"
-)
+2. Make a config file utilizing the influxdb input plugin and an output plugin of your choice.
 
-func main {
-    expvar.Publish(os.Args[0], influxdb.Metrics("my-measurement-name"))
-}
-```
+    ```toml
+    [[inputs.influxdb]]
+      urls = ["http://localhost:6060/debug/vars"]
+    
+    [[outputs.influxdb]]
+      urls = ["http://localhost:8086"]
+      ## The target database for metrics (telegraf will create it if not exists).
+      database = "stats" # required
+      
+    ## [[outputs.file]]
+    ##   files = ["stdout"]
+    ##   data_format = "json"
+    ```
 
-#### Benchmark
+3. Start the Telegraf agent with `telegraf -config config.conf`
+
+
+#### Benchmarks
 
 Benchmark against standard library memstat expvar: 
 ```
