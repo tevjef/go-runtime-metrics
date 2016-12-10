@@ -37,7 +37,7 @@ func TestCollector(t *testing.T) {
 
 	for _, fields := range latestFields {
 		for _, expKey := range expKeys {
-			if _, ok := fields.ToMap()[expKey]; !ok {
+			if _, ok := fields.Values()[expKey]; !ok {
 				t.Errorf("expected key (%s) not found", expKey)
 			}
 		}
