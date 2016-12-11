@@ -35,7 +35,7 @@ func Metrics(measurement string) expvar.Func {
 		values := c.OneOff()
 		return &Point{
 			Name:   measurement,
-			Tags: values.Tags(),
+			Tags:   values.Tags(),
 			Values: values,
 		}
 	})
