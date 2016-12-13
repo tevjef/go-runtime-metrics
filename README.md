@@ -29,6 +29,8 @@ An example of what this looks like when configured to work with [Grafana](http:/
 
 ![](/grafana.png)
 
+[Download Dashboard](https://grafana.net/dashboards/1144)
+
 ## Pull Usage via [expvar](https://golang.org/pkg/expvar/)
 
 Package [expvar](https://golang.org/pkg/expvar/) provides a standardized interface to public variables. This library provides an exported InfluxDB formatted variable with a few other benefits: 
