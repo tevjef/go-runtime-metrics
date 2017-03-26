@@ -137,22 +137,20 @@ func RunCollector(config *Config) (err error) {
 		config.Logger.Fatalln(err)
 	}
 
-	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:        config.Database,
-		Precision:       config.Precision,
-		RetentionPolicy: config.RetentionPolicy,
-	})
+	_runStats := &runStats{
+		logger: config.Logger,
+		client: clnt,
+		config: config,
+		pc:     make(chan *client.Point),
+	}
+
+	bp, err := _runStats.newBatch()
 
 	if err != nil {
 		return err
 	}
 
-	_runStats := &runStats{
-		logger:      config.Logger,
-		client:      clnt,
-		points:      bp,
-		measurement: config.Measurement,
-	}
+	_runStats.points = bp
 
 	go _runStats.loop(config.BatchInterval)
 
@@ -168,30 +166,69 @@ func RunCollector(config *Config) (err error) {
 }
 
 type runStats struct {
-	logger      Logger
-	client      client.Client
-	points      client.BatchPoints
-	measurement string
+	logger Logger
+	client client.Client
+	points client.BatchPoints
+	config *Config
+	pc     chan *client.Point
 }
 
 func (r *runStats) onNewPoint(fields collector.Fields) {
-	pt, err := client.NewPoint(r.measurement, fields.Tags(), fields.Values(), time.Now())
+	pt, err := client.NewPoint(r.config.Measurement, fields.Tags(), fields.Values(), time.Now())
+
 	if err != nil {
 		r.logger.Fatalln(errors.Wrap(err, "error while creating point"))
 	}
 
-	// log collected points for debugging
-	r.logger.Println(pt.String())
+	r.pc <- pt
+}
 
-	r.points.AddPoint(pt)
+func (r *runStats) newBatch() (bp client.BatchPoints, err error) {
+	bp, err = client.NewBatchPoints(client.BatchPointsConfig{
+		Database:        r.config.Database,
+		Precision:       r.config.Precision,
+		RetentionPolicy: r.config.RetentionPolicy,
+	})
+
+	if err != nil {
+		r.logger.Fatalln(errors.Wrap(err, "could not create BatchPoints"))
+	}
+
+	return
 }
 
 // Write collected points to influxdb periodically
 func (r *runStats) loop(interval time.Duration) {
-	for range time.Tick(interval) {
-		if len(r.points.Points()) > 0 {
+	ticks := time.Tick(interval)
+
+	for {
+		select {
+		case <-ticks:
+			if r.points == nil || len(r.points.Points()) <= 0 {
+				continue
+			}
+
 			if err := r.client.Write(r.points); err != nil {
-				r.logger.Fatalln(errors.Wrap(err, "error while writing points to influxdb"))
+				r.logger.Fatalln(errors.Wrap(err, "could not write points to InfluxDB"))
+				continue
+			}
+
+			r.points = nil
+
+			bp, err := r.newBatch()
+
+			if err != nil {
+				r.logger.Fatalln(errors.Wrap(err, "could not create BatchPoints"))
+				continue
+			}
+
+			r.points = bp
+
+		case pt := <-r.pc:
+			if r.points != nil {
+				r.logger.Println(pt.String())
+
+				r.points.AddPoint(pt)
 			}
 		}
 	}
