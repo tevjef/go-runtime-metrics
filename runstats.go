@@ -177,7 +177,7 @@ func (r *runStats) onNewPoint(fields collector.Fields) {
 	pt, err := client.NewPoint(r.config.Measurement, fields.Tags(), fields.Values(), time.Now())
 
 	if err != nil {
-		r.logger.Fatalln(errors.Wrap(err, "Couldn't create InfluxDB point"))
+		r.logger.Fatalln(errors.Wrap(err, "error while creating point"))
 	}
 
 	r.pc <- pt
@@ -191,7 +191,7 @@ func (r *runStats) newBatch() (bp client.BatchPoints, err error) {
 	})
 
 	if err != nil {
-		r.logger.Fatalln(errors.Wrap(err, "Couldn't create BatchPoints"))
+		r.logger.Fatalln(errors.Wrap(err, "could not create BatchPoints"))
 	}
 
 	return
@@ -209,20 +209,16 @@ func (r *runStats) loop(interval time.Duration) {
 			}
 
 			if err := r.client.Write(r.points); err != nil {
-				r.logger.Fatalln(errors.Wrap(err, "Couldn't write points to InfluxDB"))
+				r.logger.Fatalln(errors.Wrap(err, "could not write points to InfluxDB"))
 				continue
 			}
 
 			r.points = nil
 
-			bp, err := client.NewBatchPoints(client.BatchPointsConfig{
-				Database:        r.config.Database,
-				Precision:       r.config.Precision,
-				RetentionPolicy: r.config.RetentionPolicy,
-			})
+			bp, err := r.newBatch()
 
 			if err != nil {
-				r.logger.Fatalln(errors.Wrap(err, "Couldn't create BatchPoints"))
+				r.logger.Fatalln(errors.Wrap(err, "could not create BatchPoints"))
 				continue
 			}
 
@@ -230,6 +226,8 @@ func (r *runStats) loop(interval time.Duration) {
 
 		case pt := <-r.pc:
 			if r.points != nil {
+				r.logger.Println(pt.String())
+
 				r.points.AddPoint(pt)
 			}
 		}
