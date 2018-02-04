@@ -1,11 +1,11 @@
 package runstats
 
 import (
+	"crypto/tls"
+	"fmt"
 	"log"
 	"os"
 	"time"
-
-	"fmt"
 
 	"github.com/influxdata/influxdb/client/v2"
 	"github.com/pkg/errors"
@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	defaultHost               = "localhost:8086"
+	defaultHttpAddr           = "localhost:8086"
+	defaultUdpAddr            = "localhost:8089"
 	defaultMeasurement        = "go.runtime"
 	defaultDatabase           = "stats"
 	defaultCollectionInterval = 10 * time.Second
@@ -25,8 +26,10 @@ var DefaultConfig = &Config{}
 
 type Config struct {
 	// InfluxDb host:port pair.
+	// Addr should be of the form "host:port"
+	// or "[ipv6-host%zone]:port".
 	// Default is "localhost:8086".
-	Host string
+	Addr string
 
 	// Database to write points to.
 	// Default is "stats" and is auto created
@@ -69,6 +72,26 @@ type Config struct {
 
 	// Default is DefaultLogger which exits when the library encounters a fatal error.
 	Logger Logger
+
+	UseUDP bool
+
+	// UserAgent is the http User Agent, defaults to "InfluxDBClient".
+	UserAgent string
+
+	// Timeout for influxdb writes, defaults to no timeout.
+	Timeout time.Duration
+
+	// InsecureSkipVerify gets passed to the http client, if true, it will
+	// skip https certificate verification. Defaults to false.
+	InsecureSkipVerify bool
+
+	// TLSConfig allows the user to set their own TLS config for the HTTP
+	// Client. If set, this option overrides InsecureSkipVerify.
+	TLSConfig *tls.Config
+
+	// PayloadSize is the maximum size of a UDP client message, optional
+	// Tune this based on your network. Defaults to UDPPayloadSize.
+	PayloadSize int
 }
 
 func (config *Config) init() (*Config, error) {
@@ -80,8 +103,12 @@ func (config *Config) init() (*Config, error) {
 		config.Database = defaultDatabase
 	}
 
-	if config.Host == "" {
-		config.Host = defaultHost
+	if config.Addr == "" {
+		if config.UseUDP {
+			config.Addr = defaultUdpAddr
+		} else {
+			config.Addr = defaultHttpAddr
+		}
 	}
 
 	if config.Measurement == "" {
@@ -114,12 +141,26 @@ func RunCollector(config *Config) (err error) {
 		return err
 	}
 
-	// Make client
-	clnt, err := client.NewHTTPClient(client.HTTPConfig{
-		Addr:     "http://" + config.Host,
-		Username: config.Username,
-		Password: config.Password,
-	})
+	var clnt client.Client
+
+	if config.UseUDP {
+		// Make UDP client
+		clnt, err = client.NewUDPClient(client.UDPConfig{
+			Addr:        config.Addr,
+			PayloadSize: config.PayloadSize,
+		})
+
+	} else {
+		clnt, err = client.NewHTTPClient(client.HTTPConfig{
+			Addr:               "http://" + config.Addr,
+			Username:           config.Username,
+			Password:           config.Password,
+			UserAgent:          config.UserAgent,
+			Timeout:            config.Timeout,
+			InsecureSkipVerify: config.InsecureSkipVerify,
+			TLSConfig:          config.TLSConfig,
+		})
+	}
 
 	if err != nil {
 		return errors.Wrap(err, "failed to create influxdb client")
@@ -137,30 +178,30 @@ func RunCollector(config *Config) (err error) {
 		config.Logger.Fatalln(err)
 	}
 
-	_runStats := &runStats{
+	runStats := &runStats{
 		logger: config.Logger,
 		client: clnt,
 		config: config,
 		pc:     make(chan *client.Point),
 	}
 
-	bp, err := _runStats.newBatch()
+	bp, err := runStats.newBatch()
 
 	if err != nil {
 		return err
 	}
 
-	_runStats.points = bp
+	runStats.points = bp
 
-	go _runStats.loop(config.BatchInterval)
+	go runStats.loop(config.BatchInterval)
 
-	_collector := collector.New(_runStats.onNewPoint)
-	_collector.PauseDur = config.CollectionInterval
-	_collector.EnableCPU = !config.DisableCpu
-	_collector.EnableMem = !config.DisableMem
-	_collector.EnableGC = !config.DisableGc
+	c := collector.New(runStats.onNewPoint)
+	c.PauseDur = config.CollectionInterval
+	c.EnableCPU = !config.DisableCpu
+	c.EnableMem = !config.DisableMem
+	c.EnableGC = !config.DisableGc
 
-	go _collector.Run()
+	go c.Run()
 
 	return nil
 }
